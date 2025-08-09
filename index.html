@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Tableau de Bord - Gestion Commerciale{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-tachometer-alt"></i> Tableau de Bord</h1>
+        <p class="text-muted">Vue d'ensemble de votre activité commerciale</p>
+    </div>
+</div>
+
+<!-- Alertes -->
+{% if summary_alertes and summary_alertes.total_alertes > 0 %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="alert alert-warning">
+            <h5><i class="fas fa-exclamation-triangle"></i> Alertes ({{ summary_alertes.total_alertes }})</h5>
+            {% if summary_alertes.alertes_urgentes > 0 %}
+                <p><strong>{{ summary_alertes.alertes_urgentes }}</strong> alertes urgentes nécessitent votre attention.</p>
+            {% endif %}
+            {% for alerte in alertes %}
+                <div class="mt-2">
+                    {% if alerte.urgent %}
+                        <span class="badge bg-danger me-2">URGENT</span>
+                    {% endif %}
+                    {{ alerte.message }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Métriques principales -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-cart fa-2x text-success mb-3"></i>
+                <h5>Ventes du jour</h5>
+                <h3 class="text-success">{{ dashboard_data.ventes_jour.nombre if dashboard_data.ventes_jour else 0 }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_jour.montant).replace(",", " ") if dashboard_data.ventes_jour else "0" }} MGA</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar-week fa-2x text-info mb-3"></i>
+                <h5>Ventes semaine</h5>
+                <h3 class="text-info">{{ dashboard_data.ventes_semaine.nombre if dashboard_data.ventes_semaine else 0 }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_semaine.montant).replace(",", " ") if dashboard_data.ventes_semaine else "0" }} MGA</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar-alt fa-2x text-warning mb-3"></i>
+                <h5>Ventes du mois</h5>
+                <h3 class="text-warning">{{ dashboard_data.ventes_mois.nombre if dashboard_data.ventes_mois else 0 }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_mois.montant).replace(",", " ") if dashboard_data.ventes_mois else "0" }} MGA</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-exclamation-triangle fa-2x text-danger mb-3"></i>
+                <h5>Stock faible</h5>
+                <h3 class="text-danger">{{ dashboard_data.produits_stock_faible or 0 }}</h3>
+                <small class="text-muted">Produits</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Balance commerciale -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-balance-scale"></i> Balance Commerciale du Mois</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard_data.balance_mois %}
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h6>Total Ventes</h6>
+                        <h4 class="text-success">{{ "{:,.0f}".format(dashboard_data.balance_mois.total_ventes).replace(",", " ") }} MGA</h4>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>Total Achats</h6>
+                        <h4 class="text-warning">{{ "{:,.0f}".format(dashboard_data.balance_mois.total_achats).replace(",", " ") }} MGA</h4>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>Balance</h6>
+                        <h4 class="{{ 'text-success' if dashboard_data.balance_mois.balance >= 0 else 'text-danger' }}">
+                            {{ "{:,.0f}".format(dashboard_data.balance_mois.balance).replace(",", " ") }} MGA
+                        </h4>
+                        {% if dashboard_data.balance_mois.marge_brute > 0 %}
+                        <small class="text-muted">{{ "%.1f"|format(dashboard_data.balance_mois.marge_brute) }}% marge</small>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">Aucune donnée disponible pour ce mois.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-warehouse"></i> Résumé Stock</h5>
+            </div>
+            <div class="card-body">
+                {% if stock_summary %}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Produits actifs:</span>
+                        <strong>{{ stock_summary.total_produits }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Unités en stock:</span>
+                        <strong>{{ stock_summary.total_stock_unites }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Valeur stock:</span>
+                        <strong>{{ "{:,.0f}".format(stock_summary.total_valeur_vente).replace(",", " ") }} MGA</strong>
+                    </div>
+                </div>
+                {% if stock_summary.produits_stock_faible > 0 %}
+                <div class="alert alert-warning py-2">
+                    <small><i class="fas fa-exclamation-triangle"></i> {{ stock_summary.produits_stock_faible }} produits en stock faible</small>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted">Aucun stock configuré.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top produits -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-trophy"></i> Top Produits (30 jours)</h5>
+            </div>
+            <div class="card-body">
+                {% if dashboard_data.top_produits %}
+                    {% for item in dashboard_data.top_produits[:5] %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>{{ item.produit.nom }}</strong><br>
+                            <small class="text-muted">{{ item.total_quantite }} unités vendues</small>
+                        </div>
+                        <span class="badge bg-success">{{ "{:,.0f}".format(item.total_montant).replace(",", " ") }} MGA</span>
+                    </div>
+                    {% if not loop.last %}<hr class="my-2">{% endif %}
+                    {% endfor %}
+                {% else %}
+                <p class="text-muted">Aucune vente enregistrée.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Actions Rapides</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('vente.list_ventes') }}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Nouvelle Vente
+                    </a>
+                    <a href="{{ url_for('achat.list_achats') }}" class="btn btn-info">
+                        <i class="fas fa-shopping-cart"></i> Nouvel Achat
+                    </a>
+                    <a href="{{ url_for('produit.list_produits') }}" class="btn btn-secondary">
+                        <i class="fas fa-box"></i> Gérer Produits
+                    </a>
+                    <a href="{{ url_for('statistique.dashboard_statistiques') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-bar"></i> Voir Statistiques
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graphique des ventes -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area"></i> Évolution des Ventes (7 derniers jours)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Graphique des ventes des 7 derniers jours
+    fetch('/ventes/api/daily-sales?days=7')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + ' MGA';
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.dataset.label.includes('Montant')) {
+                                        label += context.parsed.y.toLocaleString() + ' MGA';
+                                    } else {
+                                        label += context.parsed.y;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des données:', error);
+            document.getElementById('salesChart').innerHTML = '<p class="text-muted text-center">Impossible de charger le graphique</p>';
+        });
+});
+</script>
+{% endblock %}

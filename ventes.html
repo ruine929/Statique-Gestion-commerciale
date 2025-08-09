@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Ventes - Gestion Commerciale{% endblock %}
+
+{% block content %}
+{% if not show_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-shopping-cart"></i> Gestion des Ventes</h1>
+        <p class="text-muted">Enregistrez vos ventes et suivez vos performances</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#nouvelleVenteModal">
+            <i class="fas fa-plus"></i> Nouvelle Vente
+        </button>
+    </div>
+</div>
+
+<!-- Résumé des ventes -->
+{% if summary %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-receipt fa-2x text-success mb-2"></i>
+                <h5>Total Ventes</h5>
+                <h3>{{ summary.total_ventes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-info mb-2"></i>
+                <h5>Montant Total</h5>
+                <h3>{{ "{:,.0f}".format(summary.montant_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                <h5>Bénéfice</h5>
+                <h3>{{ "{:,.0f}".format(summary.benefice_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-bag fa-2x text-primary mb-2"></i>
+                <h5>Panier Moyen</h5>
+                <h3>{{ "{:,.0f}".format(summary.panier_moyen).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filtres -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <form method="GET" class="d-flex">
+            <select name="period" class="form-select me-2" onchange="this.form.submit()">
+                <option value="today" {{ 'selected' if period == 'today' else '' }}>Aujourd'hui</option>
+                <option value="week" {{ 'selected' if period == 'week' else '' }}>Cette semaine</option>
+                <option value="month" {{ 'selected' if period == 'month' else '' }}>Ce mois</option>
+                <option value="year" {{ 'selected' if period == 'year' else '' }}>Cette année</option>
+            </select>
+            <input type="hidden" name="client_id" value="{{ client_id or '' }}">
+        </form>
+    </div>
+    <div class="col-md-4">
+        <form method="GET">
+            <select name="client_id" class="form-select" onchange="this.form.submit()">
+                <option value="">Tous les clients</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}" {{ 'selected' if client_id == client.id else '' }}>
+                    {{ client.nom }}
+                </option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="period" value="{{ period }}">
+        </form>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('vente.statistiques_ventes') }}" class="btn btn-outline-primary">
+            <i class="fas fa-chart-bar"></i> Statistiques
+        </a>
+    </div>
+</div>
+
+<!-- Liste des ventes -->
+<div class="card">
+    <div class="card-body">
+        {% if ventes and ventes.items %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Produit</th>
+                        <th>Quantité</th>
+                        <th>Prix Unit.</th>
+                        <th>Remise</th>
+                        <th>Total</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vente in ventes.items %}
+                    <tr>
+                        <td>{{ vente.date_vente.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ vente.client_rel.nom if vente.client_rel else 'N/A' }}</td>
+                        <td>{{ vente.produit_rel.nom if vente.produit_rel else 'N/A' }}</td>
+                        <td>{{ vente.quantite }}</td>
+                        <td>{{ "{:,.0f}".format(vente.prix_unitaire).replace(",", " ") }} MGA</td>
+                        <td>
+                            {% if vente.remise > 0 %}
+                            <span class="badge bg-warning">{{ vente.remise }}%</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ "{:,.0f}".format(vente.montant_total).replace(",", " ") }} MGA</strong></td>
+                        <td>
+                            {% if vente.statut == 'completed' %}
+                                <span class="badge bg-success">Terminée</span>
+                            {% elif vente.statut == 'cancelled' %}
+                                <span class="badge bg-danger">Annulée</span>
+                            {% else %}
+                                <span class="badge bg-warning">En attente</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="voirDetail({{ vente.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if vente.statut == 'completed' %}
+                                <button class="btn btn-outline-danger" onclick="annulerVente({{ vente.id }})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if ventes.pages > 1 %}
+        <nav aria-label="Pagination des ventes">
+            <ul class="pagination justify-content-center">
+                {% if ventes.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('vente.list_ventes', page=ventes.prev_num, period=period, client_id=client_id) }}">Précédent</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in ventes.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != ventes.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('vente.list_ventes', page=page_num, period=period, client_id=client_id) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if ventes.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('vente.list_ventes', page=ventes.next_num, period=period, client_id=client_id) }}">Suivant</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+            <h5>Aucune vente trouvée</h5>
+            <p class="text-muted">Commencez par enregistrer votre première vente.</p>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#nouvelleVenteModal">
+                <i class="fas fa-plus"></i> Nouvelle Vente
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Nouvelle Vente -->
+<div class="modal fade" id="nouvelleVenteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('vente.nouvelle_vente') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Nouvelle Vente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Client *</label>
+                                <select class="form-select" name="client_id" required>
+                                    <option value="">Sélectionner un client</option>
+                                    {% for client in clients %}
+                                    <option value="{{ client.id }}">{{ client.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Produit *</label>
+                                <select class="form-select" name="produit_id" id="produit_select" required onchange="updateProduitInfo()">
+                                    <option value="">Sélectionner un produit</option>
+                                    {% for produit in produits %}
+                                    <option value="{{ produit.id }}" data-prix="{{ produit.prix_vente }}" data-stock="{{ produit.stock_actuel }}">
+                                        {{ produit.nom }} (Stock: {{ produit.stock_actuel }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Quantité *</label>
+                                <input type="number" class="form-control" name="quantite" id="quantite" min="1" required onchange="calculateTotal()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Prix unitaire (MGA)</label>
+                                <input type="number" class="form-control" name="prix_unitaire" id="prix_unitaire" step="0.01" min="0" onchange="calculateTotal()">
+                                <small class="text-muted">Laissez vide pour utiliser le prix du produit</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Remise (%)</label>
+                                <input type="number" class="form-control" name="remise" id="remise" min="0" max="100" step="0.1" value="0" onchange="calculateTotal()">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" name="notes" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6>Résumé de la vente</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Montant brut:</span>
+                                        <strong id="montant_brut">0 MGA</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Remise:</span>
+                                        <strong id="montant_remise">0 MGA</strong>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Total:</span>
+                                        <strong id="montant_total">0 MGA</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">Enregistrer Vente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Statistiques des ventes -->
+{% if show_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-line"></i> Statistiques des Ventes</h1>
+        <p class="text-muted">Analysez vos performances de vente</p>
+    </div>
+</div>
+
+<!-- Résumé des statistiques -->
+{% if summary %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-receipt fa-2x text-success mb-2"></i>
+                <h5>Total Ventes</h5>
+                <h3>{{ summary.total_ventes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-info mb-2"></i>
+                <h5>Chiffre d'Affaires</h5>
+                <h3>{{ "{:,.0f}".format(summary.montant_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                <h5>Bénéfice Total</h5>
+                <h3>{{ "{:,.0f}".format(summary.benefice_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-bag fa-2x text-primary mb-2"></i>
+                <h5>Panier Moyen</h5>
+                <h3>{{ "{:,.0f}".format(summary.panier_moyen).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Top produits -->
+{% if top_produits %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-trophy"></i> Top Produits</h5>
+            </div>
+            <div class="card-body">
+                {% for item in top_produits %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ item.produit.nom }}</strong><br>
+                        <small class="text-muted">{{ item.total_quantite }} unités - {{ item.nombre_ventes }} ventes</small>
+                    </div>
+                    <span class="badge bg-success">{{ "{:,.0f}".format(item.total_montant).replace(",", " ") }} MGA</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Répartition des Ventes</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="topProductsChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Graphique des ventes quotidiennes -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area"></i> Évolution des Ventes (30 derniers jours)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="dailySalesChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fonction pour mettre à jour les informations du produit sélectionné
+function updateProduitInfo() {
+    const select = document.getElementById('produit_select');
+    const option = select.options[select.selectedIndex];
+    const prixInput = document.getElementById('prix_unitaire');
+    
+    if (option.value) {
+        prixInput.value = option.dataset.prix;
+        calculateTotal();
+    } else {
+        prixInput.value = '';
+        calculateTotal();
+    }
+}
+
+// Fonction pour calculer le total de la vente
+function calculateTotal() {
+    const quantite = parseFloat(document.getElementById('quantite').value) || 0;
+    const prixUnitaire = parseFloat(document.getElementById('prix_unitaire').value) || 0;
+    const remise = parseFloat(document.getElementById('remise').value) || 0;
+    
+    const montantBrut = quantite * prixUnitaire;
+    const montantRemise = montantBrut * (remise / 100);
+    const montantTotal = montantBrut - montantRemise;
+    
+    document.getElementById('montant_brut').textContent = montantBrut.toLocaleString() + ' MGA';
+    document.getElementById('montant_remise').textContent = montantRemise.toLocaleString() + ' MGA';
+    document.getElementById('montant_total').textContent = montantTotal.toLocaleString() + ' MGA';
+}
+
+// Fonction pour voir les détails d'une vente
+function voirDetail(id) {
+    fetch('/ventes/detail/' + id)
+        .then(response => response.json())
+        .then(data => {
+            const vente = data.vente;
+            const produit = data.produit;
+            const client = data.client;
+            
+            alert('Détails de la vente:\n' +
+                  'Client: ' + client.nom + '\n' +
+                  'Produit: ' + produit.nom + '\n' +
+                  'Quantité: ' + vente.quantite + '\n' +
+                  'Prix unitaire: ' + vente.prix_unitaire.toLocaleString() + ' MGA\n' +
+                  'Remise: ' + vente.remise + '%\n' +
+                  'Total: ' + vente.montant_total.toLocaleString() + ' MGA\n' +
+                  'Bénéfice: ' + vente.benefice.toLocaleString() + ' MGA');
+        })
+        .catch(error => {
+            alert('Erreur lors du chargement des détails');
+        });
+}
+
+// Fonction pour annuler une vente
+function annulerVente(id) {
+    const reason = prompt('Raison de l\'annulation:');
+    if (reason) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/ventes/annuler/' + id;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+{% if show_stats %}
+// Charger les graphiques des statistiques
+document.addEventListener('DOMContentLoaded', function() {
+    // Graphique des ventes quotidiennes
+    fetch('/ventes/api/daily-sales?days=30')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('dailySalesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + ' MGA';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    
+    // Graphique des top produits
+    fetch('/statistiques/api/top-products?limit=5')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('topProductsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        });
+});
+{% endif %}
+</script>
+{% endblock %}

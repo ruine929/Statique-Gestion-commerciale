@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Achats - Gestion Commerciale{% endblock %}
+
+{% block content %}
+{% if not show_stats and not show_fournisseurs %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-truck"></i> Gestion des Achats</h1>
+        <p class="text-muted">Enregistrez vos achats et gérez vos fournisseurs</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nouvelAchatModal">
+            <i class="fas fa-plus"></i> Nouvel Achat
+        </button>
+    </div>
+</div>
+
+<!-- Résumé des achats -->
+{% if summary %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-receipt fa-2x text-info mb-2"></i>
+                <h5>Total Achats</h5>
+                <h3>{{ summary.total_achats }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-warning mb-2"></i>
+                <h5>Montant Total</h5>
+                <h3>{{ "{:,.0f}".format(summary.montant_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-bag fa-2x text-success mb-2"></i>
+                <h5>Panier Moyen</h5>
+                <h3>{{ "{:,.0f}".format(summary.panier_moyen).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h5>Fournisseurs</h5>
+                <h3>{{ summary.nombre_fournisseurs }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filtres -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <form method="GET" class="d-flex">
+            <select name="period" class="form-select me-2" onchange="this.form.submit()">
+                <option value="today" {{ 'selected' if period == 'today' else '' }}>Aujourd'hui</option>
+                <option value="week" {{ 'selected' if period == 'week' else '' }}>Cette semaine</option>
+                <option value="month" {{ 'selected' if period == 'month' else '' }}>Ce mois</option>
+                <option value="year" {{ 'selected' if period == 'year' else '' }}>Cette année</option>
+            </select>
+            <input type="hidden" name="fournisseur" value="{{ fournisseur_filter or '' }}">
+        </form>
+    </div>
+    <div class="col-md-4">
+        <form method="GET">
+            <select name="fournisseur" class="form-select" onchange="this.form.submit()">
+                <option value="">Tous les fournisseurs</option>
+                {% for fournisseur in fournisseurs %}
+                <option value="{{ fournisseur }}" {{ 'selected' if fournisseur_filter == fournisseur else '' }}>
+                    {{ fournisseur }}
+                </option>
+                {% endfor %}
+            </select>
+            <input type="hidden" name="period" value="{{ period }}">
+        </form>
+    </div>
+    <div class="col-md-4 text-end">
+        <div class="btn-group">
+            <a href="{{ url_for('achat.statistiques_achats') }}" class="btn btn-outline-primary">
+                <i class="fas fa-chart-bar"></i> Statistiques
+            </a>
+            <a href="{{ url_for('achat.list_fournisseurs') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-users"></i> Fournisseurs
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Liste des achats -->
+<div class="card">
+    <div class="card-body">
+        {% if achats and achats.items %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Produit</th>
+                        <th>Fournisseur</th>
+                        <th>Quantité</th>
+                        <th>Prix Unit.</th>
+                        <th>Total</th>
+                        <th>N° Facture</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for achat in achats.items %}
+                    <tr>
+                        <td>{{ achat.date_achat.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ achat.produit_rel.nom if achat.produit_rel else 'N/A' }}</td>
+                        <td>{{ achat.fournisseur or 'N/A' }}</td>
+                        <td>{{ achat.quantite }}</td>
+                        <td>{{ "{:,.0f}".format(achat.prix_unitaire).replace(",", " ") }} MGA</td>
+                        <td><strong>{{ "{:,.0f}".format(achat.montant_total).replace(",", " ") }} MGA</strong></td>
+                        <td>{{ achat.numero_facture or '-' }}</td>
+                        <td>
+                            {% if achat.statut == 'completed' %}
+                                <span class="badge bg-success">Terminé</span>
+                            {% elif achat.statut == 'cancelled' %}
+                                <span class="badge bg-danger">Annulé</span>
+                            {% else %}
+                                <span class="badge bg-warning">En attente</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="voirDetail({{ achat.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if achat.statut == 'completed' %}
+                                <button class="btn btn-outline-danger" onclick="annulerAchat({{ achat.id }})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if achats.pages > 1 %}
+        <nav aria-label="Pagination des achats">
+            <ul class="pagination justify-content-center">
+                {% if achats.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('achat.list_achats', page=achats.prev_num, period=period, fournisseur=fournisseur_filter) }}">Précédent</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in achats.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != achats.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('achat.list_achats', page=page_num, period=period, fournisseur=fournisseur_filter) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if achats.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('achat.list_achats', page=achats.next_num, period=period, fournisseur=fournisseur_filter) }}">Suivant</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-truck fa-3x text-muted mb-3"></i>
+            <h5>Aucun achat trouvé</h5>
+            <p class="text-muted">Commencez par enregistrer votre premier achat.</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nouvelAchatModal">
+                <i class="fas fa-plus"></i> Nouvel Achat
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Nouvel Achat -->
+<div class="modal fade" id="nouvelAchatModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('achat.nouvel_achat') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Nouvel Achat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Produit *</label>
+                                <select class="form-select" name="produit_id" required>
+                                    <option value="">Sélectionner un produit</option>
+                                    {% for produit in produits %}
+                                    <option value="{{ produit.id }}">{{ produit.nom }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Fournisseur</label>
+                                <input type="text" class="form-control" name="fournisseur" list="fournisseursList">
+                                <datalist id="fournisseursList">
+                                    {% for fournisseur in fournisseurs %}
+                                    <option value="{{ fournisseur }}">
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Quantité *</label>
+                                <input type="number" class="form-control" name="quantite" min="1" required onchange="calculateAchatTotal()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Prix unitaire (MGA) *</label>
+                                <input type="number" class="form-control" name="prix_unitaire" step="0.01" min="0" required onchange="calculateAchatTotal()">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">N° Facture</label>
+                                <input type="text" class="form-control" name="numero_facture">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" name="notes" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6>Résumé de l'achat</h6>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Total:</span>
+                                        <strong id="achat_total">0 MGA</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer Achat</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Page des fournisseurs -->
+{% if show_fournisseurs %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-users"></i> Fournisseurs</h1>
+        <p class="text-muted">Vue d'ensemble de vos fournisseurs</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if fournisseurs_stats %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Fournisseur</th>
+                        <th>Nombre d'achats</th>
+                        <th>Quantité totale</th>
+                        <th>Montant total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stats in fournisseurs_stats %}
+                    <tr>
+                        <td><strong>{{ stats.fournisseur }}</strong></td>
+                        <td>{{ stats.nombre_achats }}</td>
+                        <td>{{ stats.total_quantite }} unités</td>
+                        <td>{{ "{:,.0f}".format(stats.total_montant).replace(",", " ") }} MGA</td>
+                        <td>
+                            <a href="{{ url_for('achat.list_achats', fournisseur=stats.fournisseur) }}" class="btn btn-sm btn-outline-primary">
+                                Voir achats
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            <h5>Aucun fournisseur trouvé</h5>
+            <p class="text-muted">Les fournisseurs apparaîtront ici une fois que vous aurez enregistré des achats.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Page des statistiques -->
+{% if show_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-line"></i> Statistiques des Achats</h1>
+        <p class="text-muted">Analysez vos achats et fournisseurs</p>
+    </div>
+</div>
+
+<!-- Résumé des statistiques -->
+{% if summary %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-receipt fa-2x text-info mb-2"></i>
+                <h5>Total Achats</h5>
+                <h3>{{ summary.total_achats }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-warning mb-2"></i>
+                <h5>Montant Total</h5>
+                <h3>{{ "{:,.0f}".format(summary.montant_total).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-bag fa-2x text-success mb-2"></i>
+                <h5>Panier Moyen</h5>
+                <h3>{{ "{:,.0f}".format(summary.panier_moyen).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h5>Fournisseurs</h5>
+                <h3>{{ summary.nombre_fournisseurs }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Top fournisseurs et graphique -->
+<div class="row mb-4">
+    {% if top_fournisseurs %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-trophy"></i> Top Fournisseurs</h5>
+            </div>
+            <div class="card-body">
+                {% for fournisseur in top_fournisseurs %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ fournisseur.fournisseur }}</strong><br>
+                        <small class="text-muted">{{ fournisseur.nombre_achats }} achats - {{ fournisseur.total_quantite }} unités</small>
+                    </div>
+                    <span class="badge bg-info">{{ "{:,.0f}".format(fournisseur.total_montant).replace(",", " ") }} MGA</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area"></i> Évolution des Achats (30 jours)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="dailyPurchasesChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fonction pour calculer le total de l'achat
+function calculateAchatTotal() {
+    const quantite = parseFloat(document.querySelector('input[name="quantite"]').value) || 0;
+    const prixUnitaire = parseFloat(document.querySelector('input[name="prix_unitaire"]').value) || 0;
+    
+    const total = quantite * prixUnitaire;
+    document.getElementById('achat_total').textContent = total.toLocaleString() + ' MGA';
+}
+
+// Fonction pour voir les détails d'un achat
+function voirDetail(id) {
+    fetch('/achats/detail/' + id)
+        .then(response => response.json())
+        .then(data => {
+            const achat = data.achat;
+            const produit = data.produit;
+            
+            alert('Détails de l\'achat:\n' +
+                  'Produit: ' + produit.nom + '\n' +
+                  'Fournisseur: ' + (achat.fournisseur || 'N/A') + '\n' +
+                  'Quantité: ' + achat.quantite + '\n' +
+                  'Prix unitaire: ' + achat.prix_unitaire.toLocaleString() + ' MGA\n' +
+                  'Total: ' + achat.montant_total.toLocaleString() + ' MGA\n' +
+                  'N° Facture: ' + (achat.numero_facture || 'N/A'));
+        })
+        .catch(error => {
+            alert('Erreur lors du chargement des détails');
+        });
+}
+
+// Fonction pour annuler un achat
+function annulerAchat(id) {
+    const reason = prompt('Raison de l\'annulation:');
+    if (reason) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/achats/annuler/' + id;
+        
+        const reasonInput = document.createElement('input');
+        reasonInput.type = 'hidden';
+        reasonInput.name = 'reason';
+        reasonInput.value = reason;
+        form.appendChild(reasonInput);
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+{% if show_stats %}
+// Charger le graphique des achats quotidiens
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/achats/api/daily-purchases?days=30')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('dailyPurchasesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + ' MGA';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+});
+{% endif %}
+</script>
+{% endblock %}

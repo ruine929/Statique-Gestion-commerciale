@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}Statistiques - Gestion Commerciale{% endblock %}
+
+{% block content %}
+{% if not show_balance and not show_produits and not show_rapport %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-line"></i> Tableau de Bord Statistiques</h1>
+        <p class="text-muted">Analysez vos performances commerciales</p>
+    </div>
+    <div class="col-auto">
+        <div class="btn-group">
+            <a href="{{ url_for('statistique.balance_commerciale') }}" class="btn btn-outline-primary">
+                <i class="fas fa-balance-scale"></i> Balance
+            </a>
+            <a href="{{ url_for('statistique.performance_produits') }}" class="btn btn-outline-info">
+                <i class="fas fa-box"></i> Produits
+            </a>
+            <a href="{{ url_for('statistique.rapport_complet') }}" class="btn btn-outline-success">
+                <i class="fas fa-file-alt"></i> Rapport
+            </a>
+            <div class="btn-group">
+                <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="{{ url_for('statistique.export_statistiques', format='csv', period=period) }}">CSV</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('statistique.export_statistiques', format='json', period=period) }}">JSON</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Métriques clés du tableau de bord -->
+{% if dashboard_data %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-cart fa-2x text-success mb-2"></i>
+                <h5>Ventes Aujourd'hui</h5>
+                <h3>{{ dashboard_data.ventes_jour.nombre }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_jour.montant).replace(",", " ") }} MGA</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar-week fa-2x text-info mb-2"></i>
+                <h5>Ventes Semaine</h5>
+                <h3>{{ dashboard_data.ventes_semaine.nombre }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_semaine.montant).replace(",", " ") }} MGA</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-calendar-alt fa-2x text-warning mb-2"></i>
+                <h5>Ventes du Mois</h5>
+                <h3>{{ dashboard_data.ventes_mois.nombre }}</h3>
+                <small class="text-muted">{{ "{:,.0f}".format(dashboard_data.ventes_mois.montant).replace(",", " ") }} MGA</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                <h5>Alertes Stock</h5>
+                <h3>{{ dashboard_data.produits_stock_faible }}</h3>
+                <small class="text-muted">Produits</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Balance commerciale -->
+{% if balance %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-balance-scale"></i> Balance Commerciale ({{ period|title }})</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <h6>Total Ventes</h6>
+                        <h4 class="text-success">{{ "{:,.0f}".format(balance.total_ventes).replace(",", " ") }} MGA</h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6>Total Achats</h6>
+                        <h4 class="text-warning">{{ "{:,.0f}".format(balance.total_achats).replace(",", " ") }} MGA</h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6>Balance</h6>
+                        <h4 class="{{ 'text-success' if balance.balance >= 0 else 'text-danger' }}">
+                            {{ "{:,.0f}".format(balance.balance).replace(",", " ") }} MGA
+                        </h4>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h6>Marge Brute</h6>
+                        <h4 class="text-info">{{ "%.1f"|format(balance.marge_brute) }}%</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Statistiques mensuelles -->
+{% if stats_mensuelles %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar"></i> Performance du Mois</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center">
+                        <h6>Ventes</h6>
+                        <h4 class="text-success">{{ stats_mensuelles.nombre_ventes }}</h4>
+                        <small class="text-muted">{{ "{:,.0f}".format(stats_mensuelles.total_ventes).replace(",", " ") }} MGA</small>
+                    </div>
+                    <div class="col-6 text-center">
+                        <h6>Achats</h6>
+                        <h4 class="text-info">{{ stats_mensuelles.nombre_achats }}</h4>
+                        <small class="text-muted">{{ "{:,.0f}".format(stats_mensuelles.total_achats).replace(",", " ") }} MGA</small>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <h6>Bénéfice du Mois</h6>
+                    <h3 class="{{ 'text-success' if stats_mensuelles.benefice >= 0 else 'text-danger' }}">
+                        {{ "{:,.0f}".format(stats_mensuelles.benefice).replace(",", " ") }} MGA
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Répartition des Ventes</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="salesDistributionChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Top produits et clients -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        {% if performance_produits %}
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-trophy"></i> Top 10 Produits</h5>
+            </div>
+            <div class="card-body">
+                {% for perf in performance_produits %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ perf.produit.nom }}</strong><br>
+                        <small class="text-muted">{{ perf.quantite_vendue }} unités - {{ "%.1f"|format(perf.marge_moyenne) }}% marge</small>
+                    </div>
+                    <span class="badge bg-success">{{ "{:,.0f}".format(perf.ca_genere).replace(",", " ") }} MGA</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('statistique.performance_produits') }}" class="btn btn-outline-primary btn-sm">
+                        Voir tout
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-md-6">
+        {% if stats_clients %}
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Top 10 Clients</h5>
+            </div>
+            <div class="card-body">
+                {% for stat in stats_clients %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <strong>{{ stat.client.nom }}</strong><br>
+                        <small class="text-muted">{{ stat.nombre_achats }} achats - {{ "{:,.0f}".format(stat.panier_moyen).replace(",", " ") }} MGA/achat</small>
+                    </div>
+                    <span class="badge bg-info">{{ "{:,.0f}".format(stat.montant_total).replace(",", " ") }} MGA</span>
+                </div>
+                {% if not loop.last %}<hr class="my-2">{% endif %}
+                {% endfor %}
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('client.statistiques_clients') }}" class="btn btn-outline-info btn-sm">
+                        Voir tout
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Graphique évolution mensuelle -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-area"></i> Évolution Mensuelle</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlyEvolutionChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Balance commerciale détaillée -->
+{% if show_balance %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('statistique.dashboard_statistiques') }}">Statistiques</a></li>
+                <li class="breadcrumb-item active">Balance Commerciale</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-balance-scale"></i> Balance Commerciale</h1>
+        <p class="text-muted">Analyse détaillée de votre performance financière</p>
+    </div>
+</div>
+
+<!-- Balance actuelle -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calculator"></i> Balance ({{ period|title }})</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                            <h6>Recettes (Ventes)</h6>
+                            <h4 class="text-success">{{ "{:,.0f}".format(balance.total_ventes).replace(",", " ") }} MGA</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-arrow-down fa-2x text-warning mb-2"></i>
+                            <h6>Dépenses (Achats)</h6>
+                            <h4 class="text-warning">{{ "{:,.0f}".format(balance.total_achats).replace(",", " ") }} MGA</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-equals fa-2x text-primary mb-2"></i>
+                            <h6>Résultat</h6>
+                            <h4 class="{{ 'text-success' if balance.balance >= 0 else 'text-danger' }}">
+                                {{ "{:,.0f}".format(balance.balance).replace(",", " ") }} MGA
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+                            <h6>Marge Brute</h6>
+                            <h4 class="text-info">{{ "%.1f"|format(balance.marge_brute) }}%</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if balance.balance >= 0 %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> 
+                    Votre activité est rentable avec une marge de {{ "%.1f"|format(balance.marge_brute) }}%.
+                </div>
+                {% else %}
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Attention: Votre balance est négative. Vos achats dépassent vos ventes.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comparaison année sur année -->
+{% if comparison %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Comparaison Annuelle</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h6>Ventes {{ comparison.annee_courante }}</h6>
+                        <h4 class="text-success">{{ "{:,.0f}".format(comparison.totaux_courants.ventes).replace(",", " ") }} MGA</h4>
+                        {% if comparison.variations.ventes >= 0 %}
+                        <span class="badge bg-success">+{{ "%.1f"|format(comparison.variations.ventes) }}%</span>
+                        {% else %}
+                        <span class="badge bg-danger">{{ "%.1f"|format(comparison.variations.ventes) }}%</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>Achats {{ comparison.annee_courante }}</h6>
+                        <h4 class="text-warning">{{ "{:,.0f}".format(comparison.totaux_courants.achats).replace(",", " ") }} MGA</h4>
+                        {% if comparison.variations.achats >= 0 %}
+                        <span class="badge bg-warning">+{{ "%.1f"|format(comparison.variations.achats) }}%</span>
+                        {% else %}
+                        <span class="badge bg-success">{{ "%.1f"|format(comparison.variations.achats) }}%</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h6>Bénéfice {{ comparison.annee_courante }}</h6>
+                        <h4 class="{{ 'text-success' if comparison.totaux_courants.benefice >= 0 else 'text-danger' }}">
+                            {{ "{:,.0f}".format(comparison.totaux_courants.benefice).replace(",", " ") }} MGA
+                        </h4>
+                        {% if comparison.variations.benefice >= 0 %}
+                        <span class="badge bg-success">+{{ "%.1f"|format(comparison.variations.benefice) }}%</span>
+                        {% else %}
+                        <span class="badge bg-danger">{{ "%.1f"|format(comparison.variations.benefice) }}%</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Graphique comparaison mensuelle -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Évolution Mensuelle Détaillée</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="yearlyComparisonChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Performance produits -->
+{% if show_produits %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('statistique.dashboard_statistiques') }}">Statistiques</a></li>
+                <li class="breadcrumb-item active">Performance Produits</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-box"></i> Performance des Produits</h1>
+        <p class="text-muted">Analysez la rentabilité de vos produits</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-body">
+                {% if performance_produits %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Produit</th>
+                                <th>Quantité Vendue</th>
+                                <th>CA Généré</th>
+                                <th>Bénéfice</th>
+                                <th>Marge Moyenne</th>
+                                <th>Rotation Stock</th>
+                                <th>Performance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for perf in performance_produits %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    <strong>{{ perf.produit.nom }}</strong><br>
+                                    <small class="text-muted">Stock: {{ perf.produit.stock_actuel }}</small>
+                                </td>
+                                <td>{{ perf.quantite_vendue }} unités</td>
+                                <td>{{ "{:,.0f}".format(perf.ca_genere).replace(",", " ") }} MGA</td>
+                                <td>{{ "{:,.0f}".format(perf.benefice_genere).replace(",", " ") }} MGA</td>
+                                <td>{{ "%.1f"|format(perf.marge_moyenne) }}%</td>
+                                <td>{{ "%.2f"|format(perf.rotation_stock) }}</td>
+                                <td>
+                                    {% if perf.rotation_stock >= 1.0 %}
+                                        <span class="badge bg-success">Excellente</span>
+                                    {% elif perf.rotation_stock >= 0.5 %}
+                                        <span class="badge bg-warning">Bonne</span>
+                                    {% elif perf.rotation_stock > 0 %}
+                                        <span class="badge bg-info">Correcte</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Faible</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-box fa-3x text-muted mb-3"></i>
+                    <h5>Aucune donnée de performance</h5>
+                    <p class="text-muted">Les données apparaîtront une fois que vous aurez des ventes.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Rapport complet -->
+{% if show_rapport %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-file-alt"></i> Rapport Complet</h1>
+        <p class="text-muted">Rapport généré le {{ date_rapport.strftime('%d/%m/%Y à %H:%M') }}</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" onclick="window.print()">
+            <i class="fas fa-print"></i> Imprimer
+        </button>
+    </div>
+</div>
+
+<!-- Résumé exécutif -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-summary"></i> Résumé Exécutif</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Performance Commerciale</h6>
+                        <ul>
+                            <li><strong>Balance du mois:</strong> {{ "{:,.0f}".format(balance.balance).replace(",", " ") }} MGA</li>
+                            <li><strong>Marge brute:</strong> {{ "%.1f"|format(balance.marge_brute) }}%</li>
+                            <li><strong>Ventes du mois:</strong> {{ dashboard_data.ventes_mois.nombre }} transactions</li>
+                            <li><strong>Chiffre d'affaires:</strong> {{ "{:,.0f}".format(dashboard_data.ventes_mois.montant).replace(",", " ") }} MGA</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Gestion des Stocks</h6>
+                        <ul>
+                            <li><strong>Valeur totale:</strong> {{ "{:,.0f}".format(stock_summary.total_valeur_vente).replace(",", " ") }} MGA</li>
+                            <li><strong>Produits actifs:</strong> {{ stock_summary.total_produits }}</li>
+                            <li><strong>Alertes stock:</strong> {{ stock_summary.produits_stock_faible }} produits</li>
+                            <li><strong>Unités en stock:</strong> {{ stock_summary.total_stock_unites }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top performers -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-medal"></i> Top 5 Produits</h5>
+            </div>
+            <div class="card-body">
+                {% for prod in top_produits %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{{ prod.produit.nom }}</span>
+                    <strong>{{ "{:,.0f}".format(prod.total_montant).replace(",", " ") }} MGA</strong>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> Top 5 Clients</h5>
+            </div>
+            <div class="card-body">
+                {% for client in top_clients %}
+                <div class="d-flex justify-content-between mb-2">
+                    <span>{{ client.client.nom }}</span>
+                    <strong>{{ "{:,.0f}".format(client.montant_total).replace(",", " ") }} MGA</strong>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recommandations -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb"></i> Recommandations</h5>
+            </div>
+            <div class="card-body">
+                {% if stock_summary.produits_stock_faible > 0 %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Stock faible:</strong> {{ stock_summary.produits_stock_faible }} produits nécessitent un réapprovisionnement.
+                </div>
+                {% endif %}
+                
+                {% if balance.marge_brute < 20 %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Marge optimisable:</strong> Votre marge brute de {{ "%.1f"|format(balance.marge_brute) }}% pourrait être améliorée.
+                </div>
+                {% endif %}
+                
+                {% if balance.balance >= 0 %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <strong>Performance positive:</strong> Votre activité est rentable ce mois.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Graphique évolution mensuelle
+    {% if not show_balance and not show_produits and not show_rapport %}
+    fetch('/statistiques/api/monthly-evolution')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('monthlyEvolutionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + ' MGA';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' MGA';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement du graphique:', error);
+        });
+
+    // Graphique répartition des ventes (donut)
+    fetch('/statistiques/api/top-products?limit=5')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('salesDistributionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement du graphique répartition:', error);
+        });
+    {% endif %}
+
+    {% if show_balance and comparison %}
+    // Graphique comparaison annuelle
+    const yearlyData = {
+        labels: {%- for stat in comparison.stats_mensuelles_courantes -%}
+            {%- if loop.first -%}[{%- endif -%}
+            '{{ "%02d"|format(stat.mois) }}/{{ stat.annee }}'
+            {%- if not loop.last -%},{%- endif -%}
+            {%- if loop.last -%}]{%- endif -%}
+        {%- endfor -%},
+        datasets: [
+            {
+                label: 'Ventes {{ comparison.annee_courante }}',
+                data: {%- for stat in comparison.stats_mensuelles_courantes -%}
+                    {%- if loop.first -%}[{%- endif -%}
+                    {{ stat.total_ventes }}
+                    {%- if not loop.last -%},{%- endif -%}
+                    {%- if loop.last -%}]{%- endif -%}
+                {%- endfor -%},
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            },
+            {
+                label: 'Achats {{ comparison.annee_courante }}',
+                data: {%- for stat in comparison.stats_mensuelles_courantes -%}
+                    {%- if loop.first -%}[{%- endif -%}
+                    {{ stat.total_achats }}
+                    {%- if not loop.last -%},{%- endif -%}
+                    {%- if loop.last -%}]{%- endif -%}
+                {%- endfor -%},
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.1
+            }
+        ]
+    };
+
+    const ctx = document.getElementById('yearlyComparisonChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: yearlyData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString() + ' MGA';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Produits - Gestion Commerciale{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-box"></i> Gestion des Produits</h1>
+        <p class="text-muted">Gérez votre catalogue et suivez vos stocks</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nouveauProduitModal">
+            <i class="fas fa-plus"></i> Nouveau Produit
+        </button>
+    </div>
+</div>
+
+<!-- Résumé du stock -->
+{% if stock_summary %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-box fa-2x text-primary mb-2"></i>
+                <h5>Produits Actifs</h5>
+                <h3>{{ stock_summary.total_produits }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-cubes fa-2x text-info mb-2"></i>
+                <h5>Unités en Stock</h5>
+                <h3>{{ stock_summary.total_stock_unites }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-success mb-2"></i>
+                <h5>Valeur Stock</h5>
+                <h3>{{ "{:,.0f}".format(stock_summary.total_valeur_vente).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
+                <h5>Stock Faible</h5>
+                <h3>{{ stock_summary.produits_stock_faible }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recherche et filtres -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" class="d-flex">
+            <input type="search" class="form-control me-2" name="search" placeholder="Rechercher un produit..." value="{{ search }}">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="fas fa-search"></i>
+            </button>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <a href="{{ url_for('produit.produits_stock_faible') }}" class="btn btn-outline-warning">
+            <i class="fas fa-exclamation-triangle"></i> Stock Faible
+        </a>
+    </div>
+</div>
+
+<!-- Liste des produits -->
+<div class="card">
+    <div class="card-body">
+        {% if produits and produits.items %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Prix Achat</th>
+                        <th>Prix Vente</th>
+                        <th>Marge</th>
+                        <th>Stock</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for produit in produits.items %}
+                    <tr class="{{ 'table-warning' if produit.stock_alerte else '' }}">
+                        <td>
+                            <strong>{{ produit.nom }}</strong>
+                            {% if produit.description %}
+                            <br><small class="text-muted">{{ produit.description[:50] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ "{:,.0f}".format(produit.prix_achat).replace(",", " ") }} MGA</td>
+                        <td>{{ "{:,.0f}".format(produit.prix_vente).replace(",", " ") }} MGA</td>
+                        <td>
+                            <span class="badge bg-success">{{ "%.1f"|format(produit.pourcentage_marge) }}%</span>
+                        </td>
+                        <td>
+                            <span class="badge {{ 'bg-danger' if produit.stock_actuel == 0 else 'bg-warning' if produit.stock_alerte else 'bg-success' }}">
+                                {{ produit.stock_actuel }}
+                            </span>
+                            <small class="text-muted">/ {{ produit.stock_minimum }} min</small>
+                        </td>
+                        <td>
+                            {% if produit.stock_actuel == 0 %}
+                                <span class="badge bg-danger">Épuisé</span>
+                            {% elif produit.stock_alerte %}
+                                <span class="badge bg-warning">Stock faible</span>
+                            {% else %}
+                                <span class="badge bg-success">En stock</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="voirDetail({{ produit.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="modifierProduit({{ produit.id }}, '{{ produit.nom }}', '{{ produit.description or '' }}', {{ produit.prix_achat }}, {{ produit.prix_vente }}, {{ produit.stock_minimum }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('produit.supprimer_produit', id=produit.id) }}" class="d-inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')">
+                                    <button type="submit" class="btn btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if produits.pages > 1 %}
+        <nav aria-label="Pagination des produits">
+            <ul class="pagination justify-content-center">
+                {% if produits.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('produit.list_produits', page=produits.prev_num, search=search) }}">Précédent</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in produits.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != produits.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('produit.list_produits', page=page_num, search=search) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if produits.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('produit.list_produits', page=produits.next_num, search=search) }}">Suivant</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-box fa-3x text-muted mb-3"></i>
+            <h5>Aucun produit trouvé</h5>
+            <p class="text-muted">
+                {% if search %}
+                Aucun produit ne correspond à votre recherche "{{ search }}".
+                {% else %}
+                Commencez par ajouter vos premiers produits.
+                {% endif %}
+            </p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nouveauProduitModal">
+                <i class="fas fa-plus"></i> Ajouter un Produit
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Nouveau Produit -->
+<div class="modal fade" id="nouveauProduitModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('produit.nouveau_produit') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Nouveau Produit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Nom du produit *</label>
+                                <input type="text" class="form-control" name="nom" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Stock minimum</label>
+                                <input type="number" class="form-control" name="stock_minimum" value="5" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Prix d'achat (MGA) *</label>
+                                <input type="number" class="form-control" name="prix_achat" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Prix de vente (MGA) *</label>
+                                <input type="number" class="form-control" name="prix_vente" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Stock initial</label>
+                        <input type="number" class="form-control" name="stock_initial" value="0" min="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Créer Produit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Modifier Produit -->
+<div class="modal fade" id="modifierProduitModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" id="modifierProduitForm">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Modifier Produit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Nom du produit *</label>
+                                <input type="text" class="form-control" name="nom" id="edit_nom" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Stock minimum</label>
+                                <input type="number" class="form-control" name="stock_minimum" id="edit_stock_minimum" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" id="edit_description" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Prix d'achat (MGA) *</label>
+                                <input type="number" class="form-control" name="prix_achat" id="edit_prix_achat" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Prix de vente (MGA) *</label>
+                                <input type="number" class="form-control" name="prix_vente" id="edit_prix_vente" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Sauvegarder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function modifierProduit(id, nom, description, prix_achat, prix_vente, stock_minimum) {
+    document.getElementById('modifierProduitForm').action = '/produits/modifier/' + id;
+    document.getElementById('edit_nom').value = nom;
+    document.getElementById('edit_description').value = description;
+    document.getElementById('edit_prix_achat').value = prix_achat;
+    document.getElementById('edit_prix_vente').value = prix_vente;
+    document.getElementById('edit_stock_minimum').value = stock_minimum;
+    
+    var modal = new bootstrap.Modal(document.getElementById('modifierProduitModal'));
+    modal.show();
+}
+
+function voirDetail(id) {
+    fetch('/produits/detail/' + id)
+        .then(response => response.json())
+        .then(data => {
+            alert('Détails du produit:\n' + 
+                  'Stock actuel: ' + data.produit.stock_actuel + ' unités\n' +
+                  'Valeur stock: ' + data.produit.valeur_stock.toLocaleString() + ' MGA\n' +
+                  'Total vendu: ' + data.produit.total_vendu + ' unités\n' +
+                  'CA généré: ' + data.produit.chiffre_affaires.toLocaleString() + ' MGA');
+        })
+        .catch(error => {
+            alert('Erreur lors du chargement des détails');
+        });
+}
+</script>
+{% endblock %}

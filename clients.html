@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Clients - Gestion Commerciale{% endblock %}
+
+{% block content %}
+{% if not show_detail and not show_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-users"></i> Gestion des Clients</h1>
+        <p class="text-muted">Gérez votre base clients et suivez leurs achats</p>
+    </div>
+</div>
+
+<!-- Recherche et filtres -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="GET" class="d-flex">
+            <input type="search" class="form-control me-2" name="search" placeholder="Rechercher un client..." value="{{ search }}">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="fas fa-search"></i>
+            </button>
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="btn-group">
+            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-sort"></i> Trier par
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ url_for('client.list_clients', search=search, sort='nom') }}">Nom</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('client.list_clients', search=search, sort='date_inscription') }}">Date d'inscription</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('client.list_clients', search=search, sort='total_achats') }}">Total achats</a></li>
+            </ul>
+        </div>
+        <a href="{{ url_for('client.statistiques_clients') }}" class="btn btn-outline-primary">
+            <i class="fas fa-chart-bar"></i> Statistiques
+        </a>
+        <a href="{{ url_for('client.export_clients') }}" class="btn btn-outline-success">
+            <i class="fas fa-download"></i> Export
+        </a>
+    </div>
+</div>
+
+<!-- Top clients -->
+{% if client_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-crown"></i> Top 10 Clients</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for stat in client_stats %}
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ stat.client.nom }}</strong><br>
+                                <small class="text-muted">{{ stat.nombre_achats }} achats</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success">{{ "{:,.0f}".format(stat.montant_total).replace(",", " ") }} MGA</span><br>
+                                <small class="text-muted">{{ "{:,.0f}".format(stat.panier_moyen).replace(",", " ") }} MGA/achat</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% if loop.index % 2 == 0 %}</div><div class="row">{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Liste des clients -->
+<div class="card">
+    <div class="card-body">
+        {% if clients and clients.items %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Client</th>
+                        <th>Email</th>
+                        <th>Téléphone</th>
+                        <th>Date inscription</th>
+                        <th>Nb achats</th>
+                        <th>Total achats</th>
+                        <th>Dernier achat</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients.items %}
+                    <tr>
+                        <td>
+                            <strong>{{ client.nom }}</strong>
+                            {% if client.adresse %}
+                            <br><small class="text-muted"><i class="fas fa-map-marker-alt"></i> {{ client.adresse[:30] }}...</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ client.email }}</td>
+                        <td>{{ client.telephone or '-' }}</td>
+                        <td>{{ client.date_inscription.strftime('%d/%m/%Y') if client.date_inscription else '-' }}</td>
+                        <td>
+                            <span class="badge bg-info">{{ client.nombre_achats }}</span>
+                        </td>
+                        <td>
+                            <strong>{{ "{:,.0f}".format(client.total_achats).replace(",", " ") }} MGA</strong>
+                        </td>
+                        <td>
+                            {% if client.dernier_achat %}
+                                {{ client.dernier_achat.strftime('%d/%m/%Y') }}
+                            {% else %}
+                                <span class="text-muted">Jamais</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('client.detail_client', id=client.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <button class="btn btn-outline-secondary" onclick="modifierClient({{ client.id }}, '{{ client.nom }}', '{{ client.telephone or '' }}', '{{ client.adresse or '' }}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if clients.pages > 1 %}
+        <nav aria-label="Pagination des clients">
+            <ul class="pagination justify-content-center">
+                {% if clients.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('client.list_clients', page=clients.prev_num, search=search, sort=sort_by) }}">Précédent</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in clients.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != clients.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('client.list_clients', page=page_num, search=search, sort=sort_by) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if clients.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('client.list_clients', page=clients.next_num, search=search, sort=sort_by) }}">Suivant</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+            <h5>Aucun client trouvé</h5>
+            <p class="text-muted">
+                {% if search %}
+                Aucun client ne correspond à votre recherche "{{ search }}".
+                {% else %}
+                Les clients apparaîtront ici une fois qu'ils se seront connectés et auront effectué des achats.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Détail client -->
+{% if show_detail %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('client.list_clients') }}">Clients</a></li>
+                <li class="breadcrumb-item active">{{ client.nom }}</li>
+            </ol>
+        </nav>
+        <h1><i class="fas fa-user"></i> {{ client.nom }}</h1>
+        <p class="text-muted">Détails et historique du client</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-secondary" onclick="modifierClient({{ client.id }}, '{{ client.nom }}', '{{ client.telephone or '' }}', '{{ client.adresse or '' }}')">
+            <i class="fas fa-edit"></i> Modifier
+        </button>
+    </div>
+</div>
+
+<!-- Informations client -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> Informations</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Email:</strong> {{ client.email }}</p>
+                        <p><strong>Téléphone:</strong> {{ client.telephone or 'Non renseigné' }}</p>
+                        <p><strong>Date d'inscription:</strong> {{ client.date_inscription.strftime('%d/%m/%Y à %H:%M') if client.date_inscription else 'Inconnue' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Adresse:</strong></p>
+                        <p class="text-muted">{{ client.adresse or 'Non renseignée' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Statistiques</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <h3 class="text-success">{{ stats_client.nombre_achats }}</h3>
+                    <p class="text-muted">Achats effectués</p>
+                    
+                    <h3 class="text-info">{{ "{:,.0f}".format(stats_client.total_achats).replace(",", " ") }} MGA</h3>
+                    <p class="text-muted">Total dépensé</p>
+                    
+                    <h3 class="text-warning">{{ "{:,.0f}".format(stats_client.panier_moyen).replace(",", " ") }} MGA</h3>
+                    <p class="text-muted">Panier moyen</p>
+                    
+                    {% if stats_client.dernier_achat %}
+                    <p><strong>Dernier achat:</strong><br>{{ stats_client.dernier_achat.strftime('%d/%m/%Y') }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Historique des achats -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history"></i> Historique des Achats</h5>
+            </div>
+            <div class="card-body">
+                {% if ventes %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Produit</th>
+                                <th>Quantité</th>
+                                <th>Prix unitaire</th>
+                                <th>Total</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vente in ventes %}
+                            <tr>
+                                <td>{{ vente.date_vente.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ vente.produit_rel.nom if vente.produit_rel else 'N/A' }}</td>
+                                <td>{{ vente.quantite }}</td>
+                                <td>{{ "{:,.0f}".format(vente.prix_unitaire).replace(",", " ") }} MGA</td>
+                                <td><strong>{{ "{:,.0f}".format(vente.montant_total).replace(",", " ") }} MGA</strong></td>
+                                <td>
+                                    {% if vente.statut == 'completed' %}
+                                        <span class="badge bg-success">Terminée</span>
+                                    {% elif vente.statut == 'cancelled' %}
+                                        <span class="badge bg-danger">Annulée</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">En attente</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-shopping-cart fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">Aucun achat enregistré pour ce client.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Statistiques clients -->
+{% if show_stats %}
+<div class="row mb-4">
+    <div class="col">
+        <h1><i class="fas fa-chart-line"></i> Statistiques Clients</h1>
+        <p class="text-muted">Analysez votre base clients et leur comportement d'achat</p>
+    </div>
+</div>
+
+<!-- Métriques globales -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h5>Total Clients</h5>
+                <h3>{{ total_clients }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                <h5>Clients Actifs</h5>
+                <h3>{{ clients_actifs }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-coins fa-2x text-warning mb-2"></i>
+                <h5>CA Total</h5>
+                <h3>{{ "{:,.0f}".format(montant_total_tous).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-shopping-bag fa-2x text-info mb-2"></i>
+                <h5>Panier Moyen Global</h5>
+                <h3>{{ "{:,.0f}".format(panier_moyen_global).replace(",", " ") }} MGA</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Segmentation des clients -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-layer-group"></i> Segmentation des Clients</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-success">{{ segments.gros_clients|length }}</h4>
+                            <p>Gros Clients<br><small class="text-muted">&gt; 100,000 MGA</small></p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-info">{{ segments.clients_moyens|length }}</h4>
+                            <p>Clients Moyens<br><small class="text-muted">50,000 - 100,000 MGA</small></p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-warning">{{ segments.petits_clients|length }}</h4>
+                            <p>Petits Clients<br><small class="text-muted">&lt; 50,000 MGA</small></p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4 class="text-muted">{{ segments.clients_inactifs|length }}</h4>
+                            <p>Clients Inactifs<br><small class="text-muted">0 MGA</small></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tableau détaillé des clients -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-table"></i> Détail des Clients</h5>
+            </div>
+            <div class="card-body">
+                {% if client_stats %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Rang</th>
+                                <th>Client</th>
+                                <th>Nb achats</th>
+                                <th>Total dépensé</th>
+                                <th>Panier moyen</th>
+                                <th>Dernier achat</th>
+                                <th>Segment</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in client_stats %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    <strong>{{ stat.client.nom }}</strong><br>
+                                    <small class="text-muted">{{ stat.client.email }}</small>
+                                </td>
+                                <td>{{ stat.nombre_achats }}</td>
+                                <td>{{ "{:,.0f}".format(stat.montant_total).replace(",", " ") }} MGA</td>
+                                <td>{{ "{:,.0f}".format(stat.panier_moyen).replace(",", " ") }} MGA</td>
+                                <td>
+                                    {% if stat.derniere_vente %}
+                                        {{ stat.derniere_vente.strftime('%d/%m/%Y') }}
+                                    {% else %}
+                                        <span class="text-muted">Jamais</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if stat.montant_total >= 100000 %}
+                                        <span class="badge bg-success">Gros client</span>
+                                    {% elif stat.montant_total >= 50000 %}
+                                        <span class="badge bg-info">Client moyen</span>
+                                    {% elif stat.montant_total > 0 %}
+                                        <span class="badge bg-warning">Petit client</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactif</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-users fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">Aucune donnée statistique disponible.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal Modifier Client -->
+<div class="modal fade" id="modifierClientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="modifierClientForm">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Modifier Client</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nom *</label>
+                        <input type="text" class="form-control" name="nom" id="edit_nom" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Téléphone</label>
+                        <input type="tel" class="form-control" name="telephone" id="edit_telephone">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Adresse</label>
+                        <textarea class="form-control" name="adresse" id="edit_adresse" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Sauvegarder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function modifierClient(id, nom, telephone, adresse) {
+    document.getElementById('modifierClientForm').action = '/clients/modifier/' + id;
+    document.getElementById('edit_nom').value = nom;
+    document.getElementById('edit_telephone').value = telephone;
+    document.getElementById('edit_adresse').value = adresse;
+    
+    var modal = new bootstrap.Modal(document.getElementById('modifierClientModal'));
+    modal.show();
+}
+
+{% if show_detail %}
+// Charger les données du client pour les graphiques
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/clients/api/{{ client.id }}/ventes')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Données client chargées:', data);
+            // Ici vous pouvez ajouter des graphiques Chart.js si nécessaire
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des données client:', error);
+        });
+});
+{% endif %}
+</script>
+{% endblock %}
